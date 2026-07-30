@@ -4,50 +4,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
     <title>DSW Aula 1</title>
 </head>
 
-<body>
-    <header>
-        <h1>Gerenciador de Tarefas</h1>
+<body class="min-h-screen bg-slate-100 text-slate-800">
+    <header class="bg-slate-800 py-6 shadow-md">
+        <h1 class="text-3xl font-bold text-center text-white">Gerenciador de Tarefas</h1>
     </header>
 
-    <main>
-        <section>
-            <h2>Nova Tarefa</h2>
+    <main class="max-w-2xl mx-auto px-4 py-8 space-y-8">
+        <section class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-xl font-semibold mb-4 border-b border-slate-200 pb-2">Nova Tarefa</h2>
 
-            <form>
-                <div>
-                    <label for="input-tarefa">Nome:</label>
-                    <input type="text" id="input-tarefa" name="input-tarefa" required placeholder="Nome da tarefa">
+            <form class="space-y-4">
+                <div class="flex flex-col gap-1">
+                    <label for="input-tarefa" class="text-sm font-medium text-slate-600">Nome:</label>
+                    <input type="text" id="input-tarefa" name="input-tarefa" required placeholder="Nome da tarefa"
+                        class="rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-500">
                 </div>
 
-                <div>
-                    <label for="select-prioridade">Prioridade:</label>
+                <div class="flex flex-col gap-1">
+                    <label for="select-prioridade" class="text-sm font-medium text-slate-600">Prioridade:</label>
 
-                    <select id="select-prioridade" name="select-prioridade">
+                    <select id="select-prioridade" name="select-prioridade"
+                        class="rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-500">
                         <option value="baixa">Baixa</option>
                         <option value="media">Média</option>
                         <option value="alta">Alta</option>
                     </select>
                 </div>
 
-                <button type="submit">Enviar Tarefa</button>
+                <button type="submit"
+                    class="w-full rounded-md bg-slate-800 py-2 font-semibold text-white transition hover:bg-slate-700">Enviar
+                    Tarefa</button>
             </form>
         </section>
 
-        <section>
-            <h2>Tarefas Cadastradas</h2>
+        <section class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-xl font-semibold mb-4 border-b border-slate-200 pb-2">Tarefas Cadastradas</h2>
 
-            <div>
-                <input type="checkbox">
-                <h4>Pegar xababas</h4>
+            <div class="flex items-center gap-3 rounded-md border border-slate-200 px-4 py-3">
+                <input type="checkbox" class="h-5 w-5 rounded border-slate-300 accent-slate-800">
+                <h4 class="text-base">Pegar xababas</h4>
             </div>
         </section>
     </main>
 
-    <footer>
-        <p>Desenvolvimento de Sistemas Web - 2026</p>
+    <footer class="py-6">
+        <p class="text-center text-sm text-slate-500">Desenvolvimento de Sistemas Web - 2026</p>
     </footer>
 </body>
 
