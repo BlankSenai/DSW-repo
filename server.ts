@@ -12,6 +12,13 @@ app.get('/api/health', (_, res) => {
     })
 })
 
+// GET /version - Versão e nome do sistema
+app.get('/api/version', (_, res) => {
+    res.json({
+        appName: "Gerenciador de Tarefas Multi-Usuário",
+        version: "1.0.0"
+    })
+})
 
 app.listen(port, () => {
     console.log(`Servidor funfando em http://localhost:${port}`)
