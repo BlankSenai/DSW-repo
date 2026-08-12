@@ -1,0 +1,7 @@
+### ==========================================================
+### Aula 5: Rotas de diagnostico
+### ==========================================================
+
+### Testar integridade do sistema (health)
+
+# GET http://localhost:3000/api/health
