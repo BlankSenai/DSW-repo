@@ -3,7 +3,21 @@
 ### ==========================================================
 
 ### Testar integridade do sistema (health)
-# GET http://localhost:3000/api/health
+GET http://localhost:3000/api/health
 
 ### Ver versão do sistema
 GET http://localhost:3000/api/version
+
+### Ver tarefas
+GET http://localhost:3000/api/tasks
+
+### Criar tarefa
+POST http://localhost:3000/api/tasks
+Content-Type: application/json
+
+{
+    "title": "Teste"
+}
+
+### Apagar tarefa
+DELETE http://localhost:3000/api/tasks/457cf435-601b-423b-9688-953b2cf21c74
