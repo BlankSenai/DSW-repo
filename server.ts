@@ -11,12 +11,13 @@ app.use(express.json())
 interface Tarefa {
     id: number,
     title: String,
-    status: "Pendente" | "Finalizado" | "Em andamento"
+    status: "Pendente" | "Finalizado" | "Em andamento",
+    prioridade: "Alta" | "Media" | "Baixa"
 }
 
 // banco provisorio em RAM
 let temp_bd: Tarefa[] = [
-    { id: 1, title: "Estudar REST", status: "Pendente" }
+    { id: 1, title: "Estudar REST", status: "Pendente", prioridade: "Baixa" }
 ]
 
 const db = new Database("tarefas.db")
@@ -25,7 +26,8 @@ db.exec(`
     CREATE TABLE IF NOT EXISTS TAREFAS (
         IDTAREFA INTEGER PRIMARY KEY AUTOINCREMENT,
         TITULO TEXT NOT NULL,
-        STATUS TEXT DEFAULT 'Pendente'
+        STATUS TEXT DEFAULT 'Pendente',
+        PRIORIDADE TEXT DEFAULT 'Medio'
     );    
 
     CREATE TABLE IF NOT EXISTS USUARIOS (
@@ -73,7 +75,7 @@ app.get("/api/tasks", (req, res) => {
             // Prepared Statement: O '?' protege contra Injeção de SQL.
             const sql = "SELECT * FROM TAREFAS WHERE TITULO LIKE ?";
 
-            const tarefas = db.prepare(sql).all(`% ${ search } %`)
+            const tarefas = db.prepare(sql).all(`% ${search} %`)
             res.json(tarefas);
         } else {
             const tarefas = db.prepare("SELECT * FROM TAREFAS").all();
@@ -86,21 +88,29 @@ app.get("/api/tasks", (req, res) => {
 });
 
 // POST /tasks - Cria uma nova tarefa
-app.post('/api/tasks', (req, res) => {
-    const { title } = req.body
+app.post("/api/tasks", (req, res) => {
+    const { title, prioridade } = req.body;
+    const prioridadeValida = ['Baixa', 'Media', 'Alta'].includes(prioridade) ? prioridade : 'Media';
 
-    const newTask: Tarefa = {
-        id: Date.now(),
-        title: title,
-        status: "Pendente"
+    // Validação rígida: Título obrigatório, não vazio e com tamanho mínimo
+    // Sanitizamos com .trim() ANTES de checar o length, aplicando a regra de negócio
+    if (!title || title.trim().length < 3) {
+        return res.status(400).json({
+            error: "O título da tarefa é obrigatório e deve conter pelo menos 3 caracteres válidos."
+        });
     }
 
-    temp_bd.push(newTask)
+    try {
+        const sql = "INSERT INTO TAREFAS (TITULO, STATUS, PRIORIDADE) VALUES (?, 'Pendente', ?)";
+        const resultado = db.prepare(sql).run(title.trim(), prioridadeValida);
 
-    res.status(201).json({
-        newTask
-    })
-})
+        // Retorna o objeto recém-criado usando o ID gerado (lastInsertRowid).
+        const novaTarefa = db.prepare("SELECT * FROM TAREFAS WHERE IDTAREFA = ?").get(resultado.lastInsertRowid);
+        return res.status(201).json(novaTarefa);
+    } catch (erro) {
+        return res.status(500).json({ error: "Erro ao processar persistência" });
+    }
+});
 
 // DELETE /tasks - Deleta uma tarefa
 app.delete('/api/tasks/:id', (req, res) => {

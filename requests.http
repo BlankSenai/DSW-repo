@@ -24,3 +24,44 @@ DELETE http://localhost:3000/api/tasks/457cf435-601b-423b-9688-953b2cf21c74
 
 ### Teste de ataque
 GET http://localhost:3000/api/tasks?search=' UNION SELECT IDUSUARIO, EMAIL, SENHA FROM USUARIOS --
+
+
+### ============================================
+### AULA 10: Validação Profunda e Escrita Segura
+### ============================================
+
+### Cenário 1: Criar uma tarefa com sucesso (Prioridade válida)
+POST http://localhost:3000/api/tasks
+Content-Type: application/json
+
+{
+    "title": "Estudar Node.js e SQLite",
+    "prioridade": "Alta"
+}
+
+
+### Cenário 2: Erro - Título vazio (Deve retornar Status 400)
+POST http://localhost:3000/api/tasks
+Content-Type: application/json
+
+{
+    "title": "   ",
+    "prioridade": "low"
+}
+
+
+### Cenário 3: Erro - Título muito curto (Abaixo de 3 caracteres)
+POST http://localhost:3000/api/tasks
+Content-Type: application/json
+
+{
+    "title": "Oi", 
+    "prioridade": "high"
+}
+
+
+### Cenário 4: Erro - Sem corpo na requisição (Deve retornar Status 400)
+POST http://localhost:3000/api/tasks
+Content-Type: application/json
+
+{}
