@@ -21,3 +21,6 @@ Content-Type: application/json
 
 ### Apagar tarefa
 DELETE http://localhost:3000/api/tasks/457cf435-601b-423b-9688-953b2cf21c74
+
+### Teste de ataque
+GET http://localhost:3000/api/tasks?search=' UNION SELECT IDUSUARIO, EMAIL, SENHA FROM USUARIOS --
