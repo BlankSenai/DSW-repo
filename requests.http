@@ -46,7 +46,7 @@ Content-Type: application/json
 
 {
     "title": "   ",
-    "prioridade": "low"
+    "prioridade": "Baixa"
 }
 
 
@@ -56,7 +56,7 @@ Content-Type: application/json
 
 {
     "title": "Oi", 
-    "prioridade": "high"
+    "prioridade": "Alta"
 }
 
 
@@ -65,3 +65,98 @@ POST http://localhost:3000/api/tasks
 Content-Type: application/json
 
 {}
+
+### ============================================ 
+### DESAFIO CRUD: Atualização de Tarefas (PUT)
+### ============================================ 
+
+### Cenário 1: Atualização Total com Sucesso
+PUT http://localhost:3000/api/tasks/1
+Content-Type: application/json
+
+{
+  "title": "Estudar Node.js, SQLite e fazer deploy",
+  "prioridade": "Alta",
+  "status": "Finalizada"
+}
+
+
+### Cenário 2: Erro - Título apenas com espaços
+PUT http://localhost:3000/api/tasks/1
+Content-Type: application/json
+
+{ "title": "   ", "prioridade": "Baixa" }
+
+
+### Cenário 3: Erro - Título curto (Abaixo de 3 caracteres)
+PUT http://localhost:3000/api/tasks/1
+Content-Type: application/json
+
+{ "title": "Go", "prioridade": "Media" }
+
+
+### Cenário 4: Erro - ID inexistente (Deve retornar 404)
+PUT http://localhost:3000/api/tasks/9999
+Content-Type: application/json
+
+{ "title": "Tarefa fantasma", "prioridade": "Media", "status": "Pendente" }
+
+
+### Cenário 5: Erro - ID de texto inválido (Deve retornar 400)
+PUT http://localhost:3000/api/tasks/abc
+Content-Type: application/json
+
+{ "title": "ID incorreto na rota", "prioridade": "Media" }
+
+### ============================================ 
+### DESAFIO CRUD: Atualização Parcial (PATCH)
+### ============================================ 
+
+
+### Cenário 1: Atualizar APENAS o status
+PATCH http://localhost:3000/api/tasks/1
+Content-Type: application/json
+
+{ "status": "Finalizado" }
+
+
+### Cenário 2: Atualizar APENAS o título
+PATCH http://localhost:3000/api/tasks/1
+Content-Type: application/json
+
+{ "title": "Novo título atualizado via PATCH" }
+
+
+### Cenário 3: Erro - PATCH com título inválido
+PATCH http://localhost:3000/api/tasks/1
+Content-Type: application/json
+
+{ "title": "  Ab  " }
+
+
+### Cenário 4: Erro - Prioridade inexistente
+PATCH http://localhost:3000/api/tasks/1
+Content-Type: application/json
+
+{ "prioridade": "Super urgente" }
+
+
+### Cenário 5: Erro - Corpo da requisição vazio
+PATCH http://localhost:3000/api/tasks/1
+Content-Type: application/json
+
+{}
+
+### Teste 1: Deleção de Sucesso
+# Altere o número '1' no final da URL para um ID 
+#que você sabe que existe no seu banco
+DELETE http://localhost:3000/api/tasks/1
+
+
+###
+
+
+### Teste 2: Deleção de Falha (ID Inexistente)
+# Este teste valida o erro 404 e a mensagem customizada
+# do seu 'if (resultado.changes === 0)'
+DELETE http://localhost:3000/api/tasks/99999
