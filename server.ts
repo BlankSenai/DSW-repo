@@ -8,18 +8,6 @@ const port = 3000
 // middleware para ler body json
 app.use(express.json())
 
-interface Tarefa {
-    id: number,
-    title: String,
-    status: "Pendente" | "Finalizada",
-    prioridade: "Alta" | "Media" | "Baixa"
-}
-
-// banco provisorio em RAM
-let temp_bd: Tarefa[] = [
-    { id: 1, title: "Estudar REST", status: "Pendente", prioridade: "Baixa" }
-]
-
 const db = new Database("tarefas.db")
 
 db.exec(`
@@ -38,7 +26,7 @@ db.exec(`
 `)
 
 // Inserindo dados falsos para serem vazados
-const usuariosExistentes = db.prepare("SELECT COUNT(*) AS COUNT FROM USUARIOS").get() as any
+const usuariosExistentes = db.prepare("SELECT COUNT(*) AS count FROM USUARIOS").get() as any
 
 if (usuariosExistentes.count == 0) {
     db.exec(`
@@ -75,7 +63,7 @@ app.get("/api/tasks", (req, res) => {
             // Prepared Statement: O '?' protege contra Injeção de SQL.
             const sql = "SELECT * FROM TAREFAS WHERE TITULO LIKE ?";
 
-            const tarefas = db.prepare(sql).all(`% ${search} %`)
+            const tarefas = db.prepare(sql).all(`%${search}%`)
             res.json(tarefas);
         } else {
             const tarefas = db.prepare("SELECT * FROM TAREFAS").all();
@@ -116,7 +104,7 @@ app.post("/api/tasks", (req, res) => {
 app.delete("/api/tasks/:id", (req, res) => {
     const { id } = req.params;
     try {
-        const sql = "DELETE FROM tarefas WHERE id = ?";
+        const sql = "DELETE FROM TAREFAS WHERE IDTAREFA = ?";
         const resultado = db.prepare(sql).run(id);
         
         // No SQLite, o sucesso é medido pelo número de 
@@ -165,7 +153,7 @@ app.put("/api/tasks/:id", (req, res) => {
 
   try {
     // 4. Execução do UPDATE utilizando Prepared Statement (?) para segurança
-    const sql = "UPDATE tarefas SET titulo = ?, status = ?, prioridade = ? WHERE id = ?";
+    const sql = "UPDATE TAREFAS SET TITULO = ?, STATUS = ?, PRIORIDADE = ? WHERE IDTAREFA = ?";
     const resultado = db.prepare(sql).run(title.trim(), statusValido, prioridadeValida, idParaAtualizar);
 
 
@@ -176,7 +164,7 @@ app.put("/api/tasks/:id", (req, res) => {
 
 
     // 6. Busca a tarefa recém-atualizada para retornar no corpo da resposta (Princípio REST)
-    const tarefaAtualizada = db.prepare("SELECT * FROM tarefas WHERE id = ?").get(idParaAtualizar);
+    const tarefaAtualizada = db.prepare("SELECT * FROM TAREFAS WHERE IDTAREFA = ?").get(idParaAtualizar);
     return res.status(200).json(tarefaAtualizada);
 
 
@@ -204,7 +192,7 @@ app.patch("/api/tasks/:id", (req, res) => {
     // Usamos uma transação para garantir consistência ao buscar e atualizar (evita estado parcial)
     const fluxoAtualizacao = db.transaction(() => {
       // 3. Busca o registro atual no banco para validação cruzada/existência
-      const tarefaExistente = db.prepare("SELECT * FROM tarefas WHERE id = ?").get(idParaAtualizar) as any;
+      const tarefaExistente = db.prepare("SELECT * FROM TAREFAS WHERE IDTAREFA = ?").get(idParaAtualizar) as any;
       if (!tarefaExistente) return null;
 
       const camposParaAtualizar: string[] = [];
@@ -215,36 +203,36 @@ app.patch("/api/tasks/:id", (req, res) => {
         if (typeof title !== "string" || title.trim().length < 3) {
           throw new Error("O título da tarefa deve conter pelo menos 3 caracteres válidos.");
         }
-        camposParaAtualizar.push("titulo = ?");
+        camposParaAtualizar.push("TITULO = ?");
         valoresParaAtualizar.push(title.trim());
       }
 
       // 5. Validação condicional: Prioridade (se enviada)
       if (prioridade !== undefined) {
-        if (!['low', 'medium', 'high'].includes(prioridade)) {
-          throw new Error("Prioridade inválida. Use 'low', 'medium' ou 'high'.");
+        if (!['Baixa', 'Media', 'Alta'].includes(prioridade)) {
+          throw new Error("Prioridade inválida. Use 'Baixa', 'Media' ou 'Alta'.");
         }
-        camposParaAtualizar.push("prioridade = ?");
+        camposParaAtualizar.push("PRIORIDADE = ?");
         valoresParaAtualizar.push(prioridade);
       }
 
       // 6. Validação condicional: Status (se enviado)
       if (status !== undefined) {
-        if (!['pending', 'completed'].includes(status)) {
-          throw new Error("Status inválido. Use 'pending' ou 'completed'.");
+        if (!['Pendente', 'Finalizada'].includes(status)) {
+          throw new Error("Status inválido. Use 'Pendente' ou 'Finalizada'.");
         }
-        camposParaAtualizar.push("status = ?");
+        camposParaAtualizar.push("STATUS = ?");
         valoresParaAtualizar.push(status);
       }
 
       if (camposParaAtualizar.length === 0) return tarefaExistente;
 
       // 7. Montagem segura da query dinâmica com Prepared Statements
-      const sql = `UPDATE tarefas SET ${camposParaAtualizar.join(", ")} WHERE id = ?`;
+      const sql = `UPDATE TAREFAS SET ${camposParaAtualizar.join(", ")} WHERE IDTAREFA = ?`;
       valoresParaAtualizar.push(idParaAtualizar);
 
       db.prepare(sql).run(...valoresParaAtualizar);
-      return db.prepare("SELECT * FROM tarefas WHERE id = ?").get(idParaAtualizar);
+      return db.prepare("SELECT * FROM TAREFAS WHERE IDTAREFA = ?").get(idParaAtualizar);
     });
 
     const resultado = fluxoAtualizacao();
