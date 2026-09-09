@@ -160,3 +160,18 @@ DELETE http://localhost:3000/api/tasks/1
 # Este teste valida o erro 404 e a mensagem customizada
 # do seu 'if (resultado.changes === 0)'
 DELETE http://localhost:3000/api/tasks/99999
+
+
+### ============================================
+### PASSO 4: Coerção Segura da query ?search
+### ============================================
+
+### 31. Teste de Array Injection (A Busca Bizarra)
+# Sem proteção: o JS converte ['a', 'b'] em "a,b" e faz uma busca descontrolada que não acha nada.
+# Com proteção (Passo 4): o servidor percebe que não é uma string pura, barra o array e lista as tarefas intencionalmente.
+GET http://localhost:3000/api/tasks?search=a&search=b
+
+### 32. Teste de Parâmetro Indefinido (O Acidente)
+# Sem proteção: a variável search fica undefined, o código se perde e lista tudo por acidente.
+# Com proteção (Passo 4): o servidor barra o dado ruim, força uma string vazia ("") e lista tudo de propósito e com segurança.
+GET http://localhost:3000/api/tasks?search[]=a&search[]=b
