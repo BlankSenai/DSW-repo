@@ -117,7 +117,7 @@ Content-Type: application/json
 PATCH http://localhost:3000/api/tasks/1
 Content-Type: application/json
 
-{ "status": "Finalizado" }
+{ "status": "Finalizada" }
 
 
 ### Cenário 2: Atualizar APENAS o título
@@ -175,3 +175,29 @@ GET http://localhost:3000/api/tasks?search=a&search=b
 # Sem proteção: a variável search fica undefined, o código se perde e lista tudo por acidente.
 # Com proteção (Passo 4): o servidor barra o dado ruim, força uma string vazia ("") e lista tudo de propósito e com segurança.
 GET http://localhost:3000/api/tasks?search[]=a&search[]=b
+
+### ============================================
+### PASSO 5: Provando as Defesas na Prática
+### ============================================
+
+### 33. Quebrando o Type Guard: Título numérico (deve retornar 400)
+# O invasor tenta mandar um número (123) no lugar de uma string.
+# A nossa função tituloValido() vai barrar isso graças à verificação typeof t === "string".
+POST http://localhost:3000/api/tasks
+Content-Type: application/json
+
+{
+    "title": 123,
+    "prioridade": "Alta"
+}
+
+### 34. Quebrando a Allowlist: Status não permitido (deve retornar 400)
+# O invasor tenta inventar um status que não existe no banco ("cancelled").
+# Nossa rota PATCH verifica a lista STATUS_VALIDOS e barra a ação antes mesmo de abrir a transação no banco.
+# Usamos o id 2 (em vez do 1) porque a tarefa 1 já foi apagada pelo "Teste 1: Deleção de Sucesso" acima.
+PATCH http://localhost:3000/api/tasks/2
+Content-Type: application/json
+
+{
+    "status": "cancelled"
+}

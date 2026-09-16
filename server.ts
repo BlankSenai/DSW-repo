@@ -3,7 +3,7 @@ import Database from "better-sqlite3"
 
 const app = express()
 
-const port = 3000
+const port = Number(process.env.PORT) || 3000
 
 // 1. Molde (Interface) das tarefas — nomes das colunas reais do banco
 interface Tarefa {
@@ -119,8 +119,7 @@ app.post("/api/tasks", (req, res) => {
   const { title, prioridade } = req.body;
   const prioridadeValida = normalizarPrioridade(prioridade);
 
-  // Validação rígida: Título obrigatório, não vazio e com tamanho mínimo
-  // Sanitizamos com .trim() ANTES de checar o length, aplicando a regra de negócio
+  // Validação via helper (type guard)
   if (!tituloValido(title)) {
     return res.status(400).json({
       error: "O título da tarefa é obrigatório e deve conter pelo menos 3 caracteres válidos."
@@ -129,87 +128,66 @@ app.post("/api/tasks", (req, res) => {
 
   try {
     const resultado = stmtInserirTarefa.run(title.trim(), prioridadeValida);
-
-    // Retorna o objeto recém-criado usando o ID gerado (lastInsertRowid).
-    const novaTarefa = stmtBuscarPorId.get(resultado.lastInsertRowid);
+    const novaTarefa = stmtBuscarPorId.get(resultado.lastInsertRowid) as Tarefa;
     return res.status(201).json(novaTarefa);
-  } catch (erro) {
+  } catch {
     return res.status(500).json({ error: "Erro ao processar persistência" });
   }
 });
 
 // Rota para deletar fisicamente uma tarefa do banco
 app.delete("/api/tasks/:id", (req, res) => {
-  const id = parsearId(req.params.id);
-  if (id === null) {
-    res.status(404).json({ error: "Tarefa não localizada para exclusão." });
-    return;
+  // Validação de ID padronizada (igual PUT/PATCH)
+  const idParaDeletar = parsearId(req.params.id);
+  if (idParaDeletar === null) {
+    return res.status(400).json({ error: "ID inválido." });
   }
   try {
-    const resultado = stmtDeletarTarefa.run(id);
+    const resultado = stmtDeletarTarefa.run(idParaDeletar);
 
-    // No SQLite, o sucesso é medido pelo número de 
+    // No SQLite, o sucesso é medido pelo número de
     // linhas afetadas (changes)
     if (resultado.changes === 0) {
-      res.status(404).json(
-        { error: "Tarefa não localizada para exclusão." }
-      );
-      return;
+      return res.status(404).json({ error: "Tarefa não localizada para exclusão." });
     }
-    res.json(
-      { message: "Tarefa excluída do banco SQLite com sucesso!" }
-    );
-  } catch (erro) {
-    res.status(500).json(
-      { error: erro instanceof Error ? erro.message : "Erro desconhecido" }
-    );
+    res.json({ message: "Tarefa excluída do banco SQLite com sucesso!" });
+  } catch {
+    res.status(500).json({ error: "Erro interno ao processar a exclusão." });
   }
 });
 
 // A Rota PUT atualiza uma tarefa existente no SQLite com validações estritas
 app.put("/api/tasks/:id", (req, res) => {
   const idParaAtualizar = parsearId(req.params.id);
-
-  // 1. Validação do ID numérico recebido na URL
   if (idParaAtualizar === null) {
     return res.status(400).json({ error: "ID inválido." });
   }
 
-
   const { title, prioridade, status } = req.body;
 
-
-  // 2. Validação rígida do Título (assim como na Aula 10)
+  // Validação via helpers
   if (!tituloValido(title)) {
     return res.status(400).json({
       error: "O título da tarefa é obrigatório e deve conter pelo menos 3 caracteres válidos."
     });
   }
 
-
-  // 3. Sanitização e valores padrão para prioridade e status
   const prioridadeValida = normalizarPrioridade(prioridade);
   const statusValido = normalizarStatus(status);
 
-
   try {
-    // 4. Execução do UPDATE utilizando Prepared Statement (?) para segurança
+    // UPDATE completo não tem statement fixo no topo: criado inline,
+    // mas ainda com placeholders (?) para segurança
     const sql = "UPDATE TAREFAS SET TITULO = ?, STATUS = ?, PRIORIDADE = ? WHERE IDTAREFA = ?";
     const resultado = db.prepare(sql).run(title.trim(), statusValido, prioridadeValida, idParaAtualizar);
 
-
-    // 5. Verifica se alguma linha foi de fato modificada no banco
     if (resultado.changes === 0) {
       return res.status(404).json({ message: "Tarefa não encontrada para atualização!" });
     }
 
-
-    // 6. Busca a tarefa recém-atualizada para retornar no corpo da resposta (Princípio REST)
-    const tarefaAtualizada = stmtBuscarPorId.get(idParaAtualizar);
+    const tarefaAtualizada = stmtBuscarPorId.get(idParaAtualizar) as Tarefa;
     return res.status(200).json(tarefaAtualizada);
-
-
-  } catch (erro) {
+  } catch {
     return res.status(500).json({ error: "Erro ao processar a atualização no banco de dados." });
   }
 });
@@ -237,7 +215,7 @@ app.patch("/api/tasks/:id", (req, res) => {
       if (!tarefaExistente) return null;
 
       const camposParaAtualizar: string[] = [];
-      const valoresParaAtualizar: any[] = [];
+      const valoresParaAtualizar: unknown[] = [];
 
       // 4. Validação condicional: Título (se enviado)
       if (title !== undefined) {
@@ -273,7 +251,7 @@ app.patch("/api/tasks/:id", (req, res) => {
       valoresParaAtualizar.push(idParaAtualizar);
 
       db.prepare(sql).run(...valoresParaAtualizar);
-      return stmtBuscarPorId.get(idParaAtualizar);
+      return stmtBuscarPorId.get(idParaAtualizar) as Tarefa;
     });
 
     const resultado = fluxoAtualizacao();
