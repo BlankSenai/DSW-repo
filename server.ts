@@ -72,98 +72,98 @@ const stmtDeletarTarefa = db.prepare("DELETE FROM TAREFAS WHERE IDTAREFA = ?")
 const usuariosExistentes = stmtContarUsuarios.get() as { count: number }
 
 if (usuariosExistentes.count === 0) {
-    // Dados parametrizados (?), sem colar texto direto na query
-    stmtInserirUsuario.run("admin@senai.com", "senha_super_secreta_123")
+  // Dados parametrizados (?), sem colar texto direto na query
+  stmtInserirUsuario.run("admin@senai.com", "senha_super_secreta_123")
 }
 
 console.log('Banco de dados SQLITE iniciado com sucesso.')
 
 // GET /health - Integridade do sistema
 app.get('/api/health', (_, res) => {
-    res.json({
-        status: "ok",
-        message: "Gestor de tarefas saudável"
-    })
+  res.json({
+    status: "ok",
+    message: "Gestor de tarefas saudável"
+  })
 })
 
 // GET /version - Versão e nome do sistema
 app.get('/api/version', (_, res) => {
-    res.json({
-        appName: "Gerenciador de Tarefas Multi-Usuário",
-        version: "1.0.0"
-    })
+  res.json({
+    appName: "Gerenciador de Tarefas Multi-Usuário",
+    version: "1.0.0"
+  })
 })
 
 // GET /tasks - Busca tarefas cadastradas
 app.get("/api/tasks", (req, res) => {
-    // 1. Coerção segura: se vier array/objeto na URL, vira string vazia
-    const search = typeof req.query.search === "string" ? req.query.search : "";
-    try {
-        if (search) {
-            // 2. O '%' entra só dentro do parâmetro (?), nunca na string da query
-            const tarefas = stmtBuscarPorTitulo.all(`%${search}%`)
-            res.json(tarefas);
-        } else {
-            // 3. Busca já compilada no Passo 2
-            const tarefas = stmtListarTodas.all();
-            res.json(tarefas);
-        }
-    } catch {
-        // 4. Erro genérico: não vaza a estrutura do banco pra internet
-        res.status(500).json({ error: "Erro interno ao processar a listagem." });
+  // 1. Coerção segura: se vier array/objeto na URL, vira string vazia
+  const search = typeof req.query.search === "string" ? req.query.search : "";
+  try {
+    if (search) {
+      // 2. O '%' entra só dentro do parâmetro (?), nunca na string da query
+      const tarefas = stmtBuscarPorTitulo.all(`%${search}%`)
+      res.json(tarefas);
+    } else {
+      // 3. Busca já compilada no Passo 2
+      const tarefas = stmtListarTodas.all();
+      res.json(tarefas);
     }
+  } catch {
+    // 4. Erro genérico: não vaza a estrutura do banco pra internet
+    res.status(500).json({ error: "Erro interno ao processar a listagem." });
+  }
 });
 
 // POST /tasks - Cria uma nova tarefa
 app.post("/api/tasks", (req, res) => {
-    const { title, prioridade } = req.body;
-    const prioridadeValida = normalizarPrioridade(prioridade);
+  const { title, prioridade } = req.body;
+  const prioridadeValida = normalizarPrioridade(prioridade);
 
-    // Validação rígida: Título obrigatório, não vazio e com tamanho mínimo
-    // Sanitizamos com .trim() ANTES de checar o length, aplicando a regra de negócio
-    if (!tituloValido(title)) {
-        return res.status(400).json({
-            error: "O título da tarefa é obrigatório e deve conter pelo menos 3 caracteres válidos."
-        });
-    }
+  // Validação rígida: Título obrigatório, não vazio e com tamanho mínimo
+  // Sanitizamos com .trim() ANTES de checar o length, aplicando a regra de negócio
+  if (!tituloValido(title)) {
+    return res.status(400).json({
+      error: "O título da tarefa é obrigatório e deve conter pelo menos 3 caracteres válidos."
+    });
+  }
 
-    try {
-        const resultado = stmtInserirTarefa.run(title.trim(), prioridadeValida);
+  try {
+    const resultado = stmtInserirTarefa.run(title.trim(), prioridadeValida);
 
-        // Retorna o objeto recém-criado usando o ID gerado (lastInsertRowid).
-        const novaTarefa = stmtBuscarPorId.get(resultado.lastInsertRowid);
-        return res.status(201).json(novaTarefa);
-    } catch (erro) {
-        return res.status(500).json({ error: "Erro ao processar persistência" });
-    }
+    // Retorna o objeto recém-criado usando o ID gerado (lastInsertRowid).
+    const novaTarefa = stmtBuscarPorId.get(resultado.lastInsertRowid);
+    return res.status(201).json(novaTarefa);
+  } catch (erro) {
+    return res.status(500).json({ error: "Erro ao processar persistência" });
+  }
 });
 
 // Rota para deletar fisicamente uma tarefa do banco
 app.delete("/api/tasks/:id", (req, res) => {
-    const id = parsearId(req.params.id);
-    if (id === null) {
-        res.status(404).json({ error: "Tarefa não localizada para exclusão." });
-        return;
+  const id = parsearId(req.params.id);
+  if (id === null) {
+    res.status(404).json({ error: "Tarefa não localizada para exclusão." });
+    return;
+  }
+  try {
+    const resultado = stmtDeletarTarefa.run(id);
+
+    // No SQLite, o sucesso é medido pelo número de 
+    // linhas afetadas (changes)
+    if (resultado.changes === 0) {
+      res.status(404).json(
+        { error: "Tarefa não localizada para exclusão." }
+      );
+      return;
     }
-    try {
-        const resultado = stmtDeletarTarefa.run(id);
-        
-        // No SQLite, o sucesso é medido pelo número de 
-        // linhas afetadas (changes)
-        if (resultado.changes === 0) {
-            res.status(404).json(
-                { error: "Tarefa não localizada para exclusão." }
-            );
-            return;
-        }
-        res.json(
-            { message: "Tarefa excluída do banco SQLite com sucesso!" }
-        );
-    } catch (erro) { 
-        res.status(500).json(
-        { error: erro instanceof Error ? erro.message : "Erro desconhecido" }
-        );
-    }
+    res.json(
+      { message: "Tarefa excluída do banco SQLite com sucesso!" }
+    );
+  } catch (erro) {
+    res.status(500).json(
+      { error: erro instanceof Error ? erro.message : "Erro desconhecido" }
+    );
+  }
 });
 
 // A Rota PUT atualiza uma tarefa existente no SQLite com validações estritas
@@ -285,8 +285,8 @@ app.patch("/api/tasks/:id", (req, res) => {
     return res.status(200).json(resultado);
 
   } catch (erro) {
-    if (erro instanceof Error && 
-       (erro.message.includes("inválid") || erro.message.includes("caracteres"))) {
+    if (erro instanceof Error &&
+      (erro.message.includes("inválid") || erro.message.includes("caracteres"))) {
       return res.status(400).json({ error: erro.message });
     }
     return res.status(500).json({ error: "Erro ao processar a atualização parcial no banco." });
@@ -294,7 +294,7 @@ app.patch("/api/tasks/:id", (req, res) => {
 });
 
 app.listen(port, () => {
-    console.log(`Servidor funfando em http://localhost:${port}`)
+  console.log(`Servidor funfando em http://localhost:${port}`)
 })
 
 
