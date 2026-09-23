@@ -8,7 +8,7 @@ const app = express()
 const port = Number(process.env.PORT) || 3000
 
 const JWT_SECRET = process.env.JWT_SECRET ||
-"pneumoultromicroscopicosilicovulcanoconiotico";
+  "pneumoultromicroscopicosilicovulcanoconiotico";
 
 // 1. Molde (Interface) das tarefas — nomes das colunas reais do banco
 interface Tarefa {
@@ -19,9 +19,9 @@ interface Tarefa {
 }
 
 interface Usuario {
-IDUSUARIO: number;
-EMAIL: string;
-SENHA: string;
+  IDUSUARIO: number;
+  EMAIL: string;
+  SENHA: string;
 }
 
 // 2. Regras centralizadas. Mudou a regra, muda só aqui.
@@ -106,6 +106,71 @@ app.get('/api/version', (_, res) => {
     version: "1.0.0"
   })
 })
+
+//POST /auth/register - Cadastra usuário com credencial criptografada
+app.post("/api/auth/register", (req, res) => {
+  const { email, senha } = req.body;
+
+  // Validação inicial dos dados
+  if (typeof email !== "string" || typeof senha !== "string") {
+    return res.status(400).json({
+      error: "E-mail e senha são obrigatórios."
+    });
+  }
+
+  if (senha.trim().length < 6) {
+    return res.status(400).json({
+      error: "A senha deve ter ao menos 6 caracteres."
+    });
+  }
+  // Criando a "impressão digital" da senha
+  const hash = bcrypt.hashSync(senha, 10);
+
+  try {
+    const resultado = stmtInserirUsuario.run(email.trim(), hash);
+    const usuario = stmtBuscarUsuarioPorId.get(resultado.lastInsertRowid) as Usuario;
+
+    return res.status(201).json({
+      id: usuario.IDUSUARIO,
+      email: usuario.EMAIL
+    });
+  } catch {
+    return res.status(409).json({ error: "E-mail já cadastrado." });
+  }
+});
+
+//POST /auth/login - Autentica usuario e gera token de acesso
+app.post("/api/auth/login", (req, res) => {
+  const { email, senha } = req.body;
+
+  if (typeof email !== "string" || typeof senha !== "string") {
+    return res.status(400).json({ error: "E-mail e senha são obrigatórios." });
+  }
+
+  const usuario = stmtBuscarUsuarioPorEmail.get(email.trim()) as Usuario | undefined;
+
+  // Compara SEMPRE com hash (mesmo se usuário não existir) para evitar vazamento
+  const hashEsperado = usuario?.SENHA ?? "$2a$10$fakehashparanaquebrarcomparacao";
+
+  const senhaOk = bcrypt.compareSync(senha, hashEsperado);
+
+  if (!usuario || !senhaOk) {
+    return res.status(401).json({ error: "Credenciais inválidas." });
+  }
+
+  // Gerando o "Crachá" de acesso
+  const token = jwt.sign(
+    {
+      id: usuario.IDUSUARIO,
+      email: usuario.EMAIL
+    },
+    JWT_SECRET,
+    {
+      expiresIn: "2h",
+    });
+    
+  return res.json({ token });
+});
 
 // GET /tasks - Busca tarefas cadastradas
 app.get("/api/tasks", (req, res) => {
