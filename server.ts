@@ -1,9 +1,14 @@
 import express from "express"
 import Database from "better-sqlite3"
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 
 const app = express()
 
 const port = Number(process.env.PORT) || 3000
+
+const JWT_SECRET = process.env.JWT_SECRET ||
+"pneumoultromicroscopicosilicovulcanoconiotico";
 
 // 1. Molde (Interface) das tarefas — nomes das colunas reais do banco
 interface Tarefa {
@@ -11,6 +16,12 @@ interface Tarefa {
   TITULO: string;
   STATUS: string;
   PRIORIDADE: string;
+}
+
+interface Usuario {
+IDUSUARIO: number;
+EMAIL: string;
+SENHA: string;
 }
 
 // 2. Regras centralizadas. Mudou a regra, muda só aqui.
@@ -53,7 +64,7 @@ db.exec(`
 
     CREATE TABLE IF NOT EXISTS USUARIOS (
         IDUSUARIO INTEGER PRIMARY KEY AUTOINCREMENT,
-        EMAIL TEXT NOT NULL,
+        EMAIL TEXT UNIQUE NOT NULL,
         SENHA TEXT NOT NULL
     );
 `)
@@ -67,6 +78,8 @@ const stmtBuscarPorTitulo = db.prepare("SELECT * FROM TAREFAS WHERE TITULO LIKE 
 const stmtBuscarPorId = db.prepare("SELECT * FROM TAREFAS WHERE IDTAREFA = ?")
 const stmtInserirTarefa = db.prepare("INSERT INTO TAREFAS (TITULO, STATUS, PRIORIDADE) VALUES (?, 'Pendente', ?)")
 const stmtDeletarTarefa = db.prepare("DELETE FROM TAREFAS WHERE IDTAREFA = ?")
+const stmtBuscarUsuarioPorId = db.prepare("SELECT * FROM USUARIOS WHERE IDUSUARIO = ?");
+const stmtBuscarUsuarioPorEmail = db.prepare("SELECT * FROM USUARIOS WHERE EMAIL = ?");
 
 // Inserindo dados falsos para serem vazados
 const usuariosExistentes = stmtContarUsuarios.get() as { count: number }
