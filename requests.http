@@ -1,4 +1,12 @@
 ### ==========================================================
+### TOKEN: rode primeiro o login (teste 38, lá no final do arquivo).
+### Ele é nomeado "login" e a variável abaixo lê o token da resposta,
+### então todas as rotas protegidas usam {{token}} sem colar nada.
+### Se preferir colar na mão: @token = <seu_token_sem_as_setas>
+### ==========================================================
+@token = {{login.response.body.token}}
+
+### ==========================================================
 ### Aula 5: Rotas de diagnostico
 ### ==========================================================
 
@@ -10,9 +18,11 @@ GET http://localhost:3000/api/version
 
 ### Ver tarefas
 GET http://localhost:3000/api/tasks
+Authorization: Bearer {{token}}
 
 ### Criar tarefa
 POST http://localhost:3000/api/tasks
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -21,9 +31,11 @@ Content-Type: application/json
 
 ### Apagar tarefa
 DELETE http://localhost:3000/api/tasks/457cf435-601b-423b-9688-953b2cf21c74
+Authorization: Bearer {{token}}
 
 ### Teste de ataque
 GET http://localhost:3000/api/tasks?search=' UNION SELECT IDUSUARIO, EMAIL, SENHA FROM USUARIOS --
+Authorization: Bearer {{token}}
 
 
 ### ============================================
@@ -32,6 +44,7 @@ GET http://localhost:3000/api/tasks?search=' UNION SELECT IDUSUARIO, EMAIL, SENH
 
 ### Cenário 1: Criar uma tarefa com sucesso (Prioridade válida)
 POST http://localhost:3000/api/tasks
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -42,6 +55,7 @@ Content-Type: application/json
 
 ### Cenário 2: Erro - Título vazio (Deve retornar Status 400)
 POST http://localhost:3000/api/tasks
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -52,6 +66,7 @@ Content-Type: application/json
 
 ### Cenário 3: Erro - Título muito curto (Abaixo de 3 caracteres)
 POST http://localhost:3000/api/tasks
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -62,6 +77,7 @@ Content-Type: application/json
 
 ### Cenário 4: Erro - Sem corpo na requisição (Deve retornar Status 400)
 POST http://localhost:3000/api/tasks
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {}
@@ -72,6 +88,7 @@ Content-Type: application/json
 
 ### Cenário 1: Atualização Total com Sucesso
 PUT http://localhost:3000/api/tasks/1
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -83,6 +100,7 @@ Content-Type: application/json
 
 ### Cenário 2: Erro - Título apenas com espaços
 PUT http://localhost:3000/api/tasks/1
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "title": "   ", "prioridade": "Baixa" }
@@ -90,6 +108,7 @@ Content-Type: application/json
 
 ### Cenário 3: Erro - Título curto (Abaixo de 3 caracteres)
 PUT http://localhost:3000/api/tasks/1
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "title": "Go", "prioridade": "Media" }
@@ -97,6 +116,7 @@ Content-Type: application/json
 
 ### Cenário 4: Erro - ID inexistente (Deve retornar 404)
 PUT http://localhost:3000/api/tasks/9999
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "title": "Tarefa fantasma", "prioridade": "Media", "status": "Pendente" }
@@ -104,6 +124,7 @@ Content-Type: application/json
 
 ### Cenário 5: Erro - ID de texto inválido (Deve retornar 400)
 PUT http://localhost:3000/api/tasks/abc
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "title": "ID incorreto na rota", "prioridade": "Media" }
@@ -115,6 +136,7 @@ Content-Type: application/json
 
 ### Cenário 1: Atualizar APENAS o status
 PATCH http://localhost:3000/api/tasks/1
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "status": "Finalizada" }
@@ -122,6 +144,7 @@ Content-Type: application/json
 
 ### Cenário 2: Atualizar APENAS o título
 PATCH http://localhost:3000/api/tasks/1
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "title": "Novo título atualizado via PATCH" }
@@ -129,6 +152,7 @@ Content-Type: application/json
 
 ### Cenário 3: Erro - PATCH com título inválido
 PATCH http://localhost:3000/api/tasks/1
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "title": "  Ab  " }
@@ -136,6 +160,7 @@ Content-Type: application/json
 
 ### Cenário 4: Erro - Prioridade inexistente
 PATCH http://localhost:3000/api/tasks/1
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "prioridade": "Super urgente" }
@@ -143,6 +168,7 @@ Content-Type: application/json
 
 ### Cenário 5: Erro - Corpo da requisição vazio
 PATCH http://localhost:3000/api/tasks/1
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {}
@@ -151,6 +177,7 @@ Content-Type: application/json
 # Altere o número '1' no final da URL para um ID 
 #que você sabe que existe no seu banco
 DELETE http://localhost:3000/api/tasks/1
+Authorization: Bearer {{token}}
 
 
 ###
@@ -160,6 +187,7 @@ DELETE http://localhost:3000/api/tasks/1
 # Este teste valida o erro 404 e a mensagem customizada
 # do seu 'if (resultado.changes === 0)'
 DELETE http://localhost:3000/api/tasks/99999
+Authorization: Bearer {{token}}
 
 
 ### ============================================
@@ -170,11 +198,13 @@ DELETE http://localhost:3000/api/tasks/99999
 # Sem proteção: o JS converte ['a', 'b'] em "a,b" e faz uma busca descontrolada que não acha nada.
 # Com proteção (Passo 4): o servidor percebe que não é uma string pura, barra o array e lista as tarefas intencionalmente.
 GET http://localhost:3000/api/tasks?search=a&search=b
+Authorization: Bearer {{token}}
 
 ### 32. Teste de Parâmetro Indefinido (O Acidente)
 # Sem proteção: a variável search fica undefined, o código se perde e lista tudo por acidente.
 # Com proteção (Passo 4): o servidor barra o dado ruim, força uma string vazia ("") e lista tudo de propósito e com segurança.
 GET http://localhost:3000/api/tasks?search[]=a&search[]=b
+Authorization: Bearer {{token}}
 
 ### ============================================
 ### PASSO 5: Provando as Defesas na Prática
@@ -184,6 +214,7 @@ GET http://localhost:3000/api/tasks?search[]=a&search[]=b
 # O invasor tenta mandar um número (123) no lugar de uma string.
 # A nossa função tituloValido() vai barrar isso graças à verificação typeof t === "string".
 POST http://localhost:3000/api/tasks
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -196,6 +227,7 @@ Content-Type: application/json
 # Nossa rota PATCH verifica a lista STATUS_VALIDOS e barra a ação antes mesmo de abrir a transação no banco.
 # Usamos o id 2 (em vez do 1) porque a tarefa 1 já foi apagada pelo "Teste 1: Deleção de Sucesso" acima.
 PATCH http://localhost:3000/api/tasks/2
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -234,7 +266,8 @@ Content-Type: application/json
 
 
 ### 38. Login com Sucesso (deve retornar o Token JWT)
-# Guarde o "token" gerado na resposta, vamos usá-lo na próxima aula!
+# O token desta resposta é usado automaticamente pela variável {{token}} (topo do arquivo).
+# @name login
 POST http://localhost:3000/api/auth/login
 Content-Type: application/json
 
@@ -251,3 +284,70 @@ Content-Type: application/json
 "email": "aluno@senai.com",
 "senha": "senhaerrada"
 }
+
+
+### ============================================
+### AULA 11: Rotas Protegidas e Isolamento por Usuário
+### ============================================
+
+### 40. Teste de Segurança: Acessar sem token (deve retornar 401)
+GET http://localhost:3000/api/tasks
+
+### 41. Teste de Segurança: Token inválido (deve retornar 401)
+GET http://localhost:3000/api/tasks
+Authorization: Bearer token.invalido.aqui
+
+### 42. (Protegido) Listar apenas as tarefas do usuário logado
+GET http://localhost:3000/api/tasks
+Authorization: Bearer {{token}}
+
+### 43. (Protegido) Criar uma tarefa (fica vinculada ao usuário logado)
+# O id criado fica guardado em {{criarTarefa.response.body.IDTAREFA}} para os testes de isolamento.
+# @name criarTarefa
+POST http://localhost:3000/api/tasks
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+    "title": "Minha Tarefa Isolada",
+    "prioridade": "Alta"
+}
+
+### 44. Isolamento: cadastrar um segundo usuário
+POST http://localhost:3000/api/auth/register
+Content-Type: application/json
+
+{
+    "email": "colega@senai.com",
+    "senha": "senhaDoColega123"
+}
+
+### 45. Isolamento: login do segundo usuário
+# @name loginColega
+POST http://localhost:3000/api/auth/login
+Content-Type: application/json
+
+{
+    "email": "colega@senai.com",
+    "senha": "senhaDoColega123"
+}
+
+### 46. Isolamento: o colega NÃO vê as tarefas do aluno (deve retornar lista vazia)
+GET http://localhost:3000/api/tasks
+Authorization: Bearer {{loginColega.response.body.token}}
+
+### 47. Isolamento: o colega tenta apagar a tarefa do aluno (deve retornar 404)
+# Usa o id da tarefa criada no teste 43, que existe e pertence ao aluno.
+DELETE http://localhost:3000/api/tasks/{{criarTarefa.response.body.IDTAREFA}}
+Authorization: Bearer {{loginColega.response.body.token}}
+
+### 48. Isolamento: o colega tenta editar a tarefa do aluno (deve retornar 404)
+PUT http://localhost:3000/api/tasks/{{criarTarefa.response.body.IDTAREFA}}
+Content-Type: application/json
+Authorization: Bearer {{loginColega.response.body.token}}
+
+{ "title": "Tentativa de invasão", "prioridade": "Alta" }
+
+### 49. Isolamento: a tarefa do aluno continua intacta (deve aparecer na lista com o título original)
+GET http://localhost:3000/api/tasks?search=Isolada
+Authorization: Bearer {{token}}
