@@ -38,6 +38,8 @@ function App() {
 
   const totalPendentes = tarefas.filter((tarefa) => !tarefa.concluida).length;
 
+  const totalConcluidas = tarefas.filter((tarefa) => tarefa.concluida).length;
+
   return (
     <>
       <main>
@@ -71,6 +73,7 @@ function App() {
 
         <p>Total de Tarefas: {tarefas.length}</p>
         <p>Pendentes: {totalPendentes}</p>
+        <p>Concluídas: {totalConcluidas}</p>
       </main>
     </>
   );
