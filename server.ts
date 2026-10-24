@@ -1,394 +1,364 @@
-import express, { type Request, type Response, type NextFunction } from "express"
-import Database from "better-sqlite3"
+import cors from 'cors';
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
+import jwt from "jsonwebtoken"; 
+import express, { type Request, type Response, type NextFunction } from "express";
+import Database from "better-sqlite3";
 
-const app = express()
+const app = express();
+app.use(cors()); // Libera o CORS para todas as rotas
 
-const port = Number(process.env.PORT) || 3000
+const PORT = Number(process.env.PORT) || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || "super_secreto_desenvolvimento";
 
-const JWT_SECRET = process.env.JWT_SECRET ||
-  "pneumoultromicroscopicosilicovulcanoconiotico";
-
-// 1. Molde (Interface) das tarefas — nomes das colunas reais do banco
+// 1. Criamos um "molde" (Interface) para nossas tarefas
 interface Tarefa {
-  IDTAREFA: number;
-  TITULO: string;
-  STATUS: string;
-  PRIORIDADE: string;
-  USUARIO_ID: number;
+    id: number;
+    titulo: string;
+    status: string;
+    prioridade: string;
 }
 
 interface Usuario {
-  IDUSUARIO: number;
-  EMAIL: string;
-  SENHA: string;
+    id: number;
+    email: string;
+    senha: string;
 }
 
 interface AuthRequest<P = Request["params"]> extends Request<P> {
-  usuarioId?: number; // Injetaremos o ID aqui após validar o token
+    usuarioId?: number; // Injetaremos o ID aqui após validar o token
 }
 
-// 2. Regras centralizadas. Mudou a regra, muda só aqui.
-const PRIORIDADES = ["Baixa", "Media", "Alta"] as const;
-const STATUS_VALIDOS = ["Pendente", "Finalizada"] as const;
+// 2. Centralizamos as regras. Se a regra mudar, mudamos em um só lugar!
+const PRIORIDADES = ["low", "medium", "high"] as const;
+const STATUS_VALIDOS = ["pending", "completed"] as const;
 
-// 3. Helpers de validação — escritos uma vez, usados em todo lugar.
+// 3. Funções ajudantes (Helpers). Escrevemos a validação uma vez e usamos em todo lugar.
 const tituloValido = (t: unknown): t is string =>
-  typeof t === "string" && t.trim().length >= 3;
+    typeof t === "string" && t.trim().length >= 3;
 
-const normalizarPrioridade = (p: unknown): string => {
-  const lista = PRIORIDADES as readonly string[];
-  return typeof p === "string" && lista.includes(p) ? p : "Media";
+const normalizarPrioridade = (p: unknown) => {
+  const listaPrioridades = PRIORIDADES as readonly string[];
+  
+  return typeof p === "string" && listaPrioridades.includes(p) 
+    ? p 
+    : "medium";
 };
 
-const normalizarStatus = (s: unknown): string => {
-  const lista = STATUS_VALIDOS as readonly string[];
-  return typeof s === "string" && lista.includes(s) ? s : "Pendente";
+const normalizarStatus = (s: unknown) => {
+  const listaStatus = STATUS_VALIDOS as readonly string[];
+  
+  return typeof s === "string" && listaStatus.includes(s) 
+    ? s 
+    : "pending";
 };
 
-// 4. Helper para transformar e validar IDs vindos da URL
+
+// 4. Um ajudante só para transformar e validar IDs
 const parsearId = (idParam: string): number | null => {
-  if (idParam.trim() === "") return null;
-  const id = Number(idParam);
-  return Number.isInteger(id) ? id : null;
+    const id = Number(idParam);
+    // Number("12abc") vira NaN imediatamente, o que é mais seguro!
+    return isNaN(id) ? null : id;
 };
 
-// 5. Middleware de Autenticação: roda antes da rota e barra quem não tem token válido
-const authenticate = (req: AuthRequest, res: Response, next: NextFunction) => {
-  const header = req.headers.authorization;
+// Middleware para ler o corpo das requisições em formato JSON
+app.use(express.json());
 
-  if (!header || !header.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "Token ausente ou mal formatado." });
-  }
-
-  const token = header.split(" ")[1]; // Pega só o token após a palavra 'Bearer'
-
-  try {
-    const payload = jwt.verify(token, JWT_SECRET) as { id: number };
-    req.usuarioId = payload.id; // Injeta o id no req para a rota usar
-    next(); // Tudo certo! Segue para a rota.
-  } catch {
-    return res.status(401).json({ error: "Token inválido ou expirado." });
-  }
-};
-
-// middleware para ler body json
-app.use(express.json())
-
-const db = new Database("tarefas.db")
-
-// CREATE TABLE IF NOT EXISTS não altera tabela já existente: se o banco local
-// ainda tem a TAREFAS antiga (sem dono), descartamos para recriar com o vínculo.
-const colunasTarefas = db.prepare("PRAGMA table_info(TAREFAS)").all() as { name: string }[]
-if (colunasTarefas.length > 0 && !colunasTarefas.some(c => c.name === "USUARIO_ID")) {
-  db.exec("DROP TABLE TAREFAS")
-}
+const db = new Database("tarefas.db");
 
 db.exec(`
-    CREATE TABLE IF NOT EXISTS USUARIOS (
-        IDUSUARIO INTEGER PRIMARY KEY AUTOINCREMENT,
-        EMAIL TEXT UNIQUE NOT NULL,
-        SENHA TEXT NOT NULL
+    CREATE TABLE IF NOT EXISTS tarefas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        titulo TEXT NOT NULL,
+        status TEXT DEFAULT 'pending',
+        prioridade TEXT DEFAULT 'medium',
+        usuario_id INTEGER NOT NULL,
+        FOREIGN KEY(usuario_id) REFERENCES usuarios(id)
     );
 
-    CREATE TABLE IF NOT EXISTS TAREFAS (
-        IDTAREFA INTEGER PRIMARY KEY AUTOINCREMENT,
-        TITULO TEXT NOT NULL,
-        STATUS TEXT DEFAULT 'Pendente',
-        PRIORIDADE TEXT DEFAULT 'Media',
-        USUARIO_ID INTEGER NOT NULL, /* <-- VÍNCULO COM O DONO DA TAREFA */
-        FOREIGN KEY(USUARIO_ID) REFERENCES USUARIOS(IDUSUARIO)
+    CREATE TABLE IF NOT EXISTS usuarios (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT UNIQUE NOT NULL,
+        senha TEXT NOT NULL
     );
-`)
+`);
 
 // Escrevemos (compilamos) as buscas UMA ÚNICA VEZ e guardamos na memória.
-// Precisam vir depois do CREATE TABLE, senão o prepare estoura ("no such table").
-const stmtContarUsuarios = db.prepare("SELECT COUNT(*) AS count FROM USUARIOS")
-const stmtInserirUsuario = db.prepare("INSERT INTO USUARIOS (EMAIL, SENHA) VALUES (?, ?)")
-const stmtListarTodas = db.prepare("SELECT * FROM TAREFAS WHERE USUARIO_ID = ?")
-const stmtBuscarPorTitulo = db.prepare("SELECT * FROM TAREFAS WHERE TITULO LIKE ? AND USUARIO_ID = ?")
-const stmtBuscarPorId = db.prepare("SELECT * FROM TAREFAS WHERE IDTAREFA = ? AND USUARIO_ID = ?")
-const stmtInserirTarefa = db.prepare("INSERT INTO TAREFAS (TITULO, STATUS, PRIORIDADE, USUARIO_ID) VALUES (?, 'Pendente', ?, ?)")
-const stmtDeletarTarefa = db.prepare("DELETE FROM TAREFAS WHERE IDTAREFA = ? AND USUARIO_ID = ?")
-const stmtBuscarUsuarioPorId = db.prepare("SELECT * FROM USUARIOS WHERE IDUSUARIO = ?");
-const stmtBuscarUsuarioPorEmail = db.prepare("SELECT * FROM USUARIOS WHERE EMAIL = ?");
+const stmtContarUsuarios = db.prepare("SELECT COUNT(*) as count FROM usuarios");
+const stmtInserirUsuario = db.prepare("INSERT INTO usuarios (email, senha) VALUES (?, ?)");
+const stmtListarTodas = db.prepare("SELECT * FROM tarefas WHERE usuario_id = ?");
+const stmtBuscarPorTitulo = db.prepare("SELECT * FROM tarefas WHERE titulo LIKE ? AND usuario_id = ?");
+const stmtBuscarPorId = db.prepare("SELECT * FROM tarefas WHERE id = ? AND usuario_id = ?");
+const stmtInserirTarefa = db.prepare("INSERT INTO tarefas (titulo, status, prioridade, usuario_id) VALUES (?, 'pending', ?, ?)");
+const stmtDeletarTarefa = db.prepare("DELETE FROM tarefas WHERE id = ? AND usuario_id = ?");
+const stmtBuscarUsuarioPorId = db.prepare("SELECT * FROM usuarios WHERE id = ?");
+const stmtBuscarUsuarioPorEmail = db.prepare("SELECT * FROM usuarios WHERE email = ?");
 
 // Inserindo dados falsos para serem vazados
-const usuariosExistentes = stmtContarUsuarios.get() as { count: number }
-
+const usuariosExistentes = stmtContarUsuarios.get() as { count: number };
 if (usuariosExistentes.count === 0) {
-  // Dados parametrizados (?), sem colar texto direto na query
-  stmtInserirUsuario.run("admin@senai.com", "senha_super_secreta_123")
+    // Bom: Usamos a busca já preparada e passamos os dados de forma parametrizada
+    stmtInserirUsuario.run("admin@senai.com", "senha_super_secreta_123");
 }
 
-console.log('Banco de dados SQLITE iniciado com sucesso.')
+console.log("Banco de dados SQLite inicializado com sucesso!");
 
-// GET /health - Integridade do sistema
-app.get('/api/health', (_, res) => {
-  res.json({
-    status: "ok",
-    message: "Gestor de tarefas saudável"
-  })
-})
-
-// GET /version - Versão e nome do sistema
-app.get('/api/version', (_, res) => {
-  res.json({
-    appName: "Gerenciador de Tarefas Multi-Usuário",
-    version: "1.0.0"
-  })
-})
-
-//POST /auth/register - Cadastra usuário com credencial criptografada
-app.post("/api/auth/register", (req, res) => {
-  const { email, senha } = req.body;
-
-  // Validação inicial dos dados
-  if (typeof email !== "string" || typeof senha !== "string") {
-    return res.status(400).json({
-      error: "E-mail e senha são obrigatórios."
-    });
-  }
-
-  if (senha.trim().length < 6) {
-    return res.status(400).json({
-      error: "A senha deve ter ao menos 6 caracteres."
-    });
-  }
-  // Criando a "impressão digital" da senha
-  const hash = bcrypt.hashSync(senha, 10);
-
-  try {
-    const resultado = stmtInserirUsuario.run(email.trim(), hash);
-    const usuario = stmtBuscarUsuarioPorId.get(resultado.lastInsertRowid) as Usuario;
-
-    return res.status(201).json({
-      id: usuario.IDUSUARIO,
-      email: usuario.EMAIL
-    });
-  } catch {
-    return res.status(409).json({ error: "E-mail já cadastrado." });
-  }
-});
-
-//POST /auth/login - Autentica usuario e gera token de acesso
-app.post("/api/auth/login", (req, res) => {
-  const { email, senha } = req.body;
-
-  if (typeof email !== "string" || typeof senha !== "string") {
-    return res.status(400).json({ error: "E-mail e senha são obrigatórios." });
-  }
-
-  const usuario = stmtBuscarUsuarioPorEmail.get(email.trim()) as Usuario | undefined;
-
-  // Compara SEMPRE com hash (mesmo se usuário não existir) para evitar vazamento
-  const hashEsperado = usuario?.SENHA ?? "$2a$10$fakehashparanaquebrarcomparacao";
-
-  const senhaOk = bcrypt.compareSync(senha, hashEsperado);
-
-  if (!usuario || !senhaOk) {
-    return res.status(401).json({ error: "Credenciais inválidas." });
-  }
-
-  // Gerando o "Crachá" de acesso
-  const token = jwt.sign(
-    {
-      id: usuario.IDUSUARIO,
-      email: usuario.EMAIL
-    },
-    JWT_SECRET,
-    {
-      expiresIn: "2h",
-    });
+// Middleware de Autenticação
+const authenticate = (req: AuthRequest, res: Response, next: NextFunction) => {
+    const header = req.headers.authorization;
     
-  return res.json({ token });
-});
-
-// GET /tasks - Busca tarefas cadastradas
-app.get("/api/tasks", authenticate, (req: AuthRequest, res: Response) => {
-  const usuarioId = req.usuarioId!; // Garantimos que existe pois o middleware já checou
-  // 1. Coerção segura: se vier array/objeto na URL, vira string vazia
-  const search = typeof req.query.search === "string" ? req.query.search : "";
-  try {
-    if (search) {
-      // 2. O '%' entra só dentro do parâmetro (?), nunca na string da query
-      const tarefas = stmtBuscarPorTitulo.all(`%${search}%`, usuarioId)
-      res.json(tarefas);
-    } else {
-      // 3. Busca já compilada no Passo 2
-      const tarefas = stmtListarTodas.all(usuarioId);
-      res.json(tarefas);
+    if (!header || !header.startsWith("Bearer ")) {
+        return res.status(401).json({ error: "Token ausente ou mal formatado." });
     }
-  } catch {
-    // 4. Erro genérico: não vaza a estrutura do banco pra internet
-    res.status(500).json({ error: "Erro interno ao processar a listagem." });
-  }
+    
+    const token = header.split(" ")[1]; // Pega só o token após a palavra 'Bearer'
+    
+    try {
+        const payload = jwt.verify(token, JWT_SECRET) as { id: number };
+        req.usuarioId = payload.id; // Injeta o id no req para a rota usar
+        next(); // Tudo certo! Segue para a rota.
+    } catch {
+        return res.status(401).json({ error: "Token inválido ou expirado." });
+    }
+};
+
+// Rota de integridade do sistema (Health Check)
+app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", message: "Servidor do Gestor de Tarefas ativo!"});
 });
 
-// POST /tasks - Cria uma nova tarefa
-app.post("/api/tasks", authenticate, (req: AuthRequest, res: Response) => {
-  const usuarioId = req.usuarioId!;
-  const { title, prioridade } = req.body;
-  const prioridadeValida = normalizarPrioridade(prioridade);
+app.get("/api/version", (req, res) => {
+    res.json({ appName: "Gerenciador de Tarefas Multi-Usuário", version: "1.0.0" });
+});
 
-  // Validação via helper (type guard)
-  if (!tituloValido(title)) {
-    return res.status(400).json({
-      error: "O título da tarefa é obrigatório e deve conter pelo menos 3 caracteres válidos."
-    });
-  }
+app.get("/api/tasks", authenticate, (req: AuthRequest, res) => {
+    const usuarioId = req.usuarioId!; // Garantimos que existe pois o middleware já checou
+    const search = typeof req.query.search === "string" ? req.query.search : "";
+    
+    try {
+        if (search) {
+            // 2. Proteção: O '%' entra DEPOIS, apenas dentro do parâmetro
+            const tarefas = stmtBuscarPorTitulo.all(`%${search}%`, usuarioId);
+            res.json(tarefas);
+        } else {
+            // 3. Performance: Usamos a busca compilada lá do Passo 2
+            const tarefas = stmtListarTodas.all(usuarioId);
+            res.json(tarefas);
+        }
+    } catch {
+        // 4. Erro Controlado: Se algo quebrar, damos uma mensagem genérica para não vazar a estrutura do banco
+        res.status(500).json({ error: "Erro interno ao processar a listagem." });
+    }
+});
 
-  try {
-    const resultado = stmtInserirTarefa.run(title.trim(), prioridadeValida, usuarioId);
-    const novaTarefa = stmtBuscarPorId.get(resultado.lastInsertRowid, usuarioId) as Tarefa;
-    return res.status(201).json(novaTarefa);
-  } catch {
-    return res.status(500).json({ error: "Erro ao processar persistência" });
-  }
+app.post("/api/tasks", authenticate, (req: AuthRequest, res) => {
+    const usuarioId = req.usuarioId!;
+    const { titulo, prioridade } = req.body;
+    const prioridadeValida = normalizarPrioridade(prioridade);
+    
+    // Validação via helper (type guard)
+    if (!tituloValido(titulo)) {
+        return res.status(400).json({
+            error: "O título da tarefa é obrigatório e deve conter pelo menos 3 caracteres válidos."
+        });
+    }
+    
+    try {
+        const resultado = stmtInserirTarefa.run(titulo.trim(), prioridadeValida, usuarioId);
+        const novaTarefa = stmtBuscarPorId.get(resultado.lastInsertRowid, usuarioId) as Tarefa;
+        
+        return res.status(201).json(novaTarefa);
+    } catch {
+        return res.status(500).json({ error: "Erro ao processar persistência" });
+    }
 });
 
 // Rota para deletar fisicamente uma tarefa do banco
-app.delete("/api/tasks/:id", authenticate, (req: AuthRequest<{ id: string }>, res: Response) => {
-  const usuarioId = req.usuarioId!;
-  // Validação de ID padronizada (igual PUT/PATCH)
-  const idParaDeletar = parsearId(req.params.id);
-  if (idParaDeletar === null) {
-    return res.status(400).json({ error: "ID inválido." });
-  }
-  try {
-    const resultado = stmtDeletarTarefa.run(idParaDeletar, usuarioId);
-
-    // No SQLite, o sucesso é medido pelo número de
-    // linhas afetadas (changes)
-    if (resultado.changes === 0) {
-      return res.status(404).json({ error: "Tarefa não localizada para exclusão." });
+app.delete("/api/tasks/:id", authenticate, (req: AuthRequest<{ id: string }>, res) => {
+    const usuarioId = req.usuarioId!;
+    // Validação de ID padronizada (igual PUT/PATCH)
+    const idParaDeletar = parsearId(req.params.id);
+    
+    if (idParaDeletar === null) {
+        return res.status(400).json({ error: "ID inválido." });
     }
-    res.json({ message: "Tarefa excluída do banco SQLite com sucesso!" });
-  } catch {
-    res.status(500).json({ error: "Erro interno ao processar a exclusão." });
-  }
+    
+    try {
+        const resultado = stmtDeletarTarefa.run(idParaDeletar, usuarioId);
+        
+        if (resultado.changes === 0) {
+            return res.status(404).json({ error: "Tarefa não localizada para exclusão." });
+        }
+        
+        res.json({ message: "Tarefa excluída do banco SQLite com sucesso!" });
+    } catch {
+        res.status(500).json({ error: "Erro interno ao processar a exclusão." });
+    }
 });
 
 // A Rota PUT atualiza uma tarefa existente no SQLite com validações estritas
-app.put("/api/tasks/:id", authenticate, (req: AuthRequest<{ id: string }>, res: Response) => {
-  const usuarioId = req.usuarioId!;
-  const idParaAtualizar = parsearId(req.params.id);
-  if (idParaAtualizar === null) {
-    return res.status(400).json({ error: "ID inválido." });
-  }
-
-  const { title, prioridade, status } = req.body;
-
-  // Validação via helpers
-  if (!tituloValido(title)) {
-    return res.status(400).json({
-      error: "O título da tarefa é obrigatório e deve conter pelo menos 3 caracteres válidos."
-    });
-  }
-
-  const prioridadeValida = normalizarPrioridade(prioridade);
-  const statusValido = normalizarStatus(status);
-
-  try {
-    // UPDATE completo não tem statement fixo no topo: criado inline,
-    // mas ainda com placeholders (?) para segurança
-    const sql = "UPDATE TAREFAS SET TITULO = ?, STATUS = ?, PRIORIDADE = ? WHERE IDTAREFA = ? AND USUARIO_ID = ?";
-    const resultado = db.prepare(sql).run(title.trim(), statusValido, prioridadeValida, idParaAtualizar, usuarioId);
-
-    if (resultado.changes === 0) {
-      return res.status(404).json({ message: "Tarefa não encontrada para atualização!" });
+app.put("/api/tasks/:id", authenticate, (req: AuthRequest<{ id: string }>, res) => {
+    const usuarioId = req.usuarioId!;
+    const idParaAtualizar = parsearId(req.params.id);
+    
+    if (idParaAtualizar === null) {
+        return res.status(400).json({ error: "ID inválido." });
     }
-
-    const tarefaAtualizada = stmtBuscarPorId.get(idParaAtualizar, usuarioId) as Tarefa;
-    return res.status(200).json(tarefaAtualizada);
-  } catch {
-    return res.status(500).json({ error: "Erro ao processar a atualização no banco de dados." });
-  }
+    
+    const { titulo, prioridade, status } = req.body;
+    
+    // Validação via helpers
+    if (!tituloValido(titulo)) {
+        return res.status(400).json({
+            error: "O título da tarefa é obrigatório e deve conter pelo menos 3 caracteres válidos."
+        });
+    }
+    
+    const prioridadeValida = normalizarPrioridade(prioridade);
+    const statusValido = normalizarStatus(status);
+    
+    try {
+        // Prepared statement inline (UPDATE completo não tem statement fixo no topo)
+        const sql = "UPDATE tarefas SET titulo = ?, status = ?, prioridade = ? WHERE id = ? AND usuario_id = ?";
+        const resultado = db.prepare(sql).run(titulo.trim(), statusValido, prioridadeValida, idParaAtualizar, usuarioId);
+        
+        if (resultado.changes === 0) {
+            return res.status(404).json({ message: "Tarefa não encontrada para atualização!" });
+        }
+        
+        const tarefaAtualizada = stmtBuscarPorId.get(idParaAtualizar, usuarioId) as Tarefa;
+        return res.status(200).json(tarefaAtualizada);
+    } catch {
+        return res.status(500).json({ error: "Erro ao processar a atualização no banco de dados." });
+    }
 });
 
 // A Rota PATCH executa atualizações parciais com validações sob demanda de forma segura e atômica
-app.patch("/api/tasks/:id", authenticate, (req: AuthRequest<{ id: string }>, res: Response) => {
-  const usuarioId = req.usuarioId!;
-  const idParaAtualizar = parsearId(req.params.id);
-
-  if (idParaAtualizar === null) {
-    return res.status(400).json({ error: "ID inválido." });
-  }
-
-
-  if (!req.body || Object.keys(req.body).length === 0) {
-    return res.status(400).json({ error: "Nenhum campo fornecido para atualização." });
-  }
-
-  const { title, prioridade, status } = req.body;
-
-  try {
-    // Usamos uma transação para garantir consistência ao buscar e atualizar (evita estado parcial)
-    const fluxoAtualizacao = db.transaction(() => {
-      // 3. Busca o registro atual no banco para validação cruzada/existência
-      const tarefaExistente = stmtBuscarPorId.get(idParaAtualizar, usuarioId) as Tarefa | undefined;
-      if (!tarefaExistente) return null;
-
-      const camposParaAtualizar: string[] = [];
-      const valoresParaAtualizar: unknown[] = [];
-
-      // 4. Validação condicional: Título (se enviado)
-      if (title !== undefined) {
-        if (!tituloValido(title)) {
-          throw new Error("O título da tarefa deve conter pelo menos 3 caracteres válidos.");
-        }
-        camposParaAtualizar.push("TITULO = ?");
-        valoresParaAtualizar.push(title.trim());
-      }
-
-      // 5. Validação condicional: Prioridade (se enviada)
-      if (prioridade !== undefined) {
-        if (!(PRIORIDADES as readonly string[]).includes(prioridade)) {
-          throw new Error("Prioridade inválida. Use 'Baixa', 'Media' ou 'Alta'.");
-        }
-        camposParaAtualizar.push("PRIORIDADE = ?");
-        valoresParaAtualizar.push(prioridade);
-      }
-
-      // 6. Validação condicional: Status (se enviado)
-      if (status !== undefined) {
-        if (!(STATUS_VALIDOS as readonly string[]).includes(status)) {
-          throw new Error("Status inválido. Use 'Pendente' ou 'Finalizada'.");
-        }
-        camposParaAtualizar.push("STATUS = ?");
-        valoresParaAtualizar.push(status);
-      }
-
-      if (camposParaAtualizar.length === 0) return tarefaExistente;
-
-      // 7. Montagem segura da query dinâmica com Prepared Statements
-      const sql = `UPDATE TAREFAS SET ${camposParaAtualizar.join(", ")} WHERE IDTAREFA = ? AND USUARIO_ID = ?`;
-      valoresParaAtualizar.push(idParaAtualizar, usuarioId);
-
-      db.prepare(sql).run(...valoresParaAtualizar);
-      return stmtBuscarPorId.get(idParaAtualizar, usuarioId) as Tarefa;
-    });
-
-    const resultado = fluxoAtualizacao();
-
-    if (!resultado) {
-      return res.status(404).json({ message: "Tarefa não encontrada para atualização parcial!" });
+app.patch("/api/tasks/:id", authenticate, (req: AuthRequest<{ id: string }>, res) => {
+    const usuarioId = req.usuarioId!;
+    const idParaAtualizar = parsearId(req.params.id);
+    
+    if (idParaAtualizar === null) {
+        return res.status(400).json({ error: "ID inválido." });
     }
-
-    return res.status(200).json(resultado);
-
-  } catch (erro) {
-    if (erro instanceof Error &&
-      (erro.message.includes("inválid") || erro.message.includes("caracteres"))) {
-      return res.status(400).json({ error: erro.message });
+    
+    if (!req.body || Object.keys(req.body).length === 0) {
+        return res.status(400).json({ error: "Nenhum campo fornecido para atualização." });
     }
-    return res.status(500).json({ error: "Erro ao processar a atualização parcial no banco." });
-  }
+    
+    const { titulo, prioridade, status } = req.body;
+    
+    try {
+        const fluxoAtualizacao = db.transaction(() => {
+            // Busca com statement singleton
+            const tarefaExistente = stmtBuscarPorId.get(idParaAtualizar, usuarioId) as Tarefa | undefined;
+            if (!tarefaExistente) return null;
+            
+            const camposParaAtualizar: string[] = [];
+            const valoresParaAtualizar: unknown[] = [];
+            
+            // Título (se enviado)
+            if (titulo !== undefined) {
+                if (!tituloValido(titulo)) {
+                    throw new Error("O título da tarefa deve conter pelo menos 3 caracteres válidos.");
+                }
+                camposParaAtualizar.push("titulo = ?");
+                valoresParaAtualizar.push(titulo.trim());
+            }
+            
+            // Prioridade (se enviada)
+            if (prioridade !== undefined) {
+                if (!PRIORIDADES.includes(prioridade as typeof PRIORIDADES[number])) {
+                    throw new Error("Prioridade inválida. Use 'low', 'medium' ou 'high'.");
+                }
+                camposParaAtualizar.push("prioridade = ?");
+                valoresParaAtualizar.push(prioridade);
+            }
+            
+            // Status (se enviado)
+            if (status !== undefined) {
+                if (!STATUS_VALIDOS.includes(status as typeof STATUS_VALIDOS[number])) {
+                    throw new Error("Status inválido. Use 'pending' ou 'completed'.");
+                }
+                camposParaAtualizar.push("status = ?");
+                valoresParaAtualizar.push(status);
+            }
+            
+            if (camposParaAtualizar.length === 0) return tarefaExistente;
+            
+            // Query dinâmica SEGURA: placeholders ? + valores array
+            const sql = `UPDATE tarefas SET ${camposParaAtualizar.join(", ")} WHERE id = ? AND usuario_id = ?`;
+            valoresParaAtualizar.push(idParaAtualizar, usuarioId);
+            
+            db.prepare(sql).run(...valoresParaAtualizar);
+            return stmtBuscarPorId.get(idParaAtualizar, usuarioId) as Tarefa;
+        });
+        
+        const resultado = fluxoAtualizacao();
+        
+        if (!resultado) {
+            return res.status(404).json({ message: "Tarefa não encontrada para atualização parcial!" });
+        }
+        
+        return res.status(200).json(resultado);
+    } catch (erro) {
+        // Distingue erro de validação (400) de erro interno (500)
+        if (erro instanceof Error && (erro.message.includes("inválid") || erro.message.includes("caracteres"))) {
+            return res.status(400).json({ error: erro.message });
+        }
+        return res.status(500).json({ error: "Erro ao processar a atualização parcial no banco." });
+    }
 });
 
-app.listen(port, () => {
-  console.log(`Servidor funfando em http://localhost:${port}`)
-})
+app.post("/api/auth/register", (req, res) => {
+    const { email, senha } = req.body;
+    
+    // Validação inicial dos dados
+    if (typeof email !== "string" || typeof senha !== "string") {
+        return res.status(400).json({ error: "E-mail e senha são obrigatórios." });
+    }
+    
+    if (senha.trim().length < 6) {
+        return res.status(400).json({ error: "A senha deve ter ao menos 6 caracteres." });
+    }
+    
+    // Criando a "impressão digital" da senha
+    const hash = bcrypt.hashSync(senha, 10);
+    
+    try {
+        const resultado = stmtInserirUsuario.run(email.trim(), hash);
+        const usuario = stmtBuscarUsuarioPorId.get(resultado.lastInsertRowid) as Usuario;
+        
+        return res.status(201).json({ id: usuario.id, email: usuario.email });
+    } catch {
+        return res.status(409).json({ error: "E-mail já cadastrado." });
+    }
+});
 
+app.post("/api/auth/login", (req, res) => {
+    const { email, senha } = req.body;
+    
+    if (typeof email !== "string" || typeof senha !== "string") {
+        return res.status(400).json({ error: "E-mail e senha são obrigatórios." });
+    }
+    
+    const usuario = stmtBuscarUsuarioPorEmail.get(email.trim()) as Usuario | undefined;
+    
+    // Compara SEMPRE com hash (mesmo se usuário não existir) para evitar vazamento
+    const hashEsperado = usuario?.senha ?? "$2a$10$fakehashparanaquebrarcomparacao";
+    const senhaOk = bcrypt.compareSync(senha, hashEsperado);
+    
+    if (!usuario || !senhaOk) {
+        return res.status(401).json({ error: "Credenciais inválidas." });
+    }
+    
+    // Gerando o "Crachá" de acesso
+    const token = jwt.sign({ id: usuario.id, email: usuario.email }, JWT_SECRET, {
+        expiresIn: "2h",
+    });
+    
+    return res.json({ token });
+});
 
+app.listen(PORT, () => {
+    console.log(`Servidor rodando em: http://localhost:${PORT}`);
+});
