@@ -1,0 +1,21 @@
+/* Tailwind CSS v4 - o ponto de entrada do framework.
+   O Tailwind v4 usa configuracao via CSS: nao existe mais tailwind.config.js.
+   Basta importar "tailwindcss" aqui e usar as classes utilitarias direto no JSX. */
+@import "tailwindcss";
+
+/* O tema escuro e o cenario base do projeto. Declaramos o fundo e a cor
+   do texto no proprio elemento <body> para que toda a tela nasca escura. */
+body {
+  background-color: var(--color-slate-950);
+  color: var(--color-slate-100);
+}
+
+/* Acessibilidade: respeita quem desligou as animacoes no sistema. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
