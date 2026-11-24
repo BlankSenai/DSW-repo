@@ -362,3 +362,28 @@ Authorization: Bearer {{token}}
 ### 44. Excluir tarefa (DELETE)
 DELETE http://localhost:3000/api/tasks/2
 Authorization: Bearer {{token}}
+
+
+# ============================================================================
+#  AULA 08 — FRONT SERVIDO PELO BACK
+#  Antes: `npm run build:web` e `npm run dev` (tudo em http://localhost:3000).
+#  Confira o STATUS e o CONTENT-TYPE, não só o status!
+# ============================================================================
+
+### 45. GET / entrega a tela -> 200 text/html com <div id="root">
+GET http://localhost:3000/
+
+### 46. GET /tarefas é rota do React -> 200 text/html (SPA fallback)
+GET http://localhost:3000/tarefas
+
+### 47. GET /favicon.svg é arquivo do build -> 200 image/svg+xml (NÃO text/html)
+GET http://localhost:3000/favicon.svg
+
+### 48. GET /api/typo não existe na API -> 404 application/json (NÃO 200, NÃO HTML)
+GET http://localhost:3000/api/typo
+
+### 49. GET /apixyz começa com "api" mas NÃO é /api -> 200 text/html
+GET http://localhost:3000/apixyz
+
+### 50. GET /api/health — a API continua respondendo junto com a tela -> 200
+GET http://localhost:3000/api/health

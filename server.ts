@@ -3,12 +3,64 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken"; 
 import express, { type Request, type Response, type NextFunction } from "express";
 import Database from "better-sqlite3";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const app = express();
-app.use(cors()); // Libera o CORS para todas as rotas
+// Em desenvolvimento o Vite (5173) e a API (3000) são origens diferentes, então
+// o navegador exige a autorização do CORS. Quando o próprio Express entrega a
+// tela (Aula 08), tudo vem da mesma origem e o cors() vira um resquício inofensivo.
+app.use(cors());
 
 const PORT = Number(process.env.PORT) || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || "super_secreto_desenvolvimento";
+
+// O projeto roda como ESM ("type": "module"), e nesse modo não existe o
+// __dirname do Node antigo: ele é reconstruído a partir de import.meta.url.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/** Pasta que o `npm run build` do Vite cria dentro de web/. */
+const FRONT_DIST = path.join(__dirname, "web", "dist");
+
+/** O arquivo de entrada que o SPA fallback entrega. */
+const FRONT_INDEX = path.join(FRONT_DIST, "index.html");
+
+/**
+ * Resposta para quando alguém abre a página e o build do front ainda não
+ * existe. Em vez do críptico "Cannot GET /", a mensagem diz o que fazer.
+ */
+const SEM_BUILD = [
+    "Ainda não existe o build do front-end.",
+    "",
+    "Procurei este arquivo:",
+    `  ${FRONT_INDEX}`,
+    "",
+    "Gere-o com:",
+    "  npm run build:web",
+    "",
+    "Enquanto isso, a API continua funcionando em /api/health.",
+].join("\n");
+
+/**
+ * Devolve a data de modificação mais recente dentro de uma pasta (olhando as
+ * subpastas também). Serve para comparar os fontes do front com o build.
+ */
+function maisRecente(dir: string): number {
+    let maior = 0;
+
+    for (const entrada of fs.readdirSync(dir, { withFileTypes: true })) {
+        const caminho = path.join(dir, entrada.name);
+
+        if (entrada.isDirectory()) {
+            maior = Math.max(maior, maisRecente(caminho));
+        } else {
+            maior = Math.max(maior, fs.statSync(caminho).mtimeMs);
+        }
+    }
+
+    return maior;
+}
 
 // 1. Criamos um "molde" (Interface) para nossas tarefas
 interface Tarefa {
@@ -359,6 +411,62 @@ app.post("/api/auth/login", (req, res) => {
     return res.json({ token });
 });
 
+// ============================================================================
+// Front-end servido pelo back (Aula 08)
+// A ordem (a) → (b) → (c) é o mecanismo: cada peça só age quando as anteriores
+// não responderam. Por isso tudo isto fica DEPOIS das rotas da API.
+// ============================================================================
+
+// (a) Rota de API que não existe responde 404 em JSON, e não HTML. Sem esta
+// linha, "GET /api/typo" cairia no fallback (c) e devolveria o index.html com
+// status 200: um erro da API viraria uma página de "sucesso".
+app.use("/api", (_req: Request, res: Response) => {
+    res.status(404).json({ error: "Rota de API não encontrada." });
+});
+
+// (b) Os arquivos que o build do Vite gerou em web/dist: index.html, os .js
+// com hash no nome, o .css e as imagens da public/. Se o arquivo pedido não
+// existe, o express.static não responde nada e passa a vez para o (c).
+app.use(express.static(FRONT_DIST));
+
+// (c) SPA fallback: qualquer outro caminho é uma rota do React, que roda no
+// navegador. Devolvemos o index.html para o app assumir — é o que permite
+// recarregar (F5) uma rota como /tarefas sem "não encontrado".
+// No Express 5 o curinga "*" não existe mais: usamos a regex /(.*)/.
+app.get(/(.*)/, (_req: Request, res: Response) => {
+    if (!fs.existsSync(FRONT_INDEX)) {
+        return res.status(503).type("text/plain").send(SEM_BUILD);
+    }
+
+    return res.sendFile(FRONT_INDEX);
+});
+
+/**
+ * Os dois avisos de inicialização:
+ *   1. o build não existe  → diz como gerar;
+ *   2. o build está VELHO  → algum arquivo de web/src mudou depois do último
+ *      build, então a tela servida não mostra a sua última alteração.
+ */
+function verificarFront(): void {
+    if (!fs.existsSync(FRONT_INDEX)) {
+        console.warn("\n[ATENÇÃO] " + SEM_BUILD + "\n");
+        return;
+    }
+
+    const fontes = path.join(__dirname, "web", "src");
+
+    if (fs.existsSync(fontes) && maisRecente(fontes) > fs.statSync(FRONT_INDEX).mtimeMs) {
+        console.warn(
+            "\n[ATENÇÃO] O build do front está VELHO: algum arquivo de web/src " +
+            "mudou depois do último build.\n" +
+            "          Rode `npm run build:web` para ver a mudança.\n",
+        );
+    }
+}
+
 app.listen(PORT, () => {
     console.log(`Servidor rodando em: http://localhost:${PORT}`);
+    console.log(`API:   http://localhost:${PORT}/api/health`);
+    console.log(`Front: http://localhost:${PORT}`);
+    verificarFront();
 });
