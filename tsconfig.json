@@ -1,13 +1,11 @@
 {
     "compilerOptions": {
-        "rootDir": "./",
         "noEmit": true,
         "module": "nodenext",
         "moduleResolution": "nodenext",
         "target": "esnext",
         "strict": true,
         "skipLibCheck": true,
-        "jsx": "react-jsx",
         "verbatimModuleSyntax": true,
         "isolatedModules": true,
         "moduleDetection": "force",
@@ -16,11 +14,6 @@
         ]
     },
     "include": [
-        "src/**/*",
         "server.ts"
-    ],
-    "exclude": [
-        "node_modules",
-        "dist"
     ]
 }

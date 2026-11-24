@@ -27,7 +27,7 @@ O repositório tem três partes:
 |---|---|---|
 | ⚙️ **API** | [`server.ts`](server.ts) | Funcional: autenticação, CRUD de tarefas e isolamento por usuário |
 | 🎨 **Interface** | [`web/`](web) | React + Vite + TypeScript + Tailwind, **conectada à API**: login, cadastro e CRUD de tarefas |
-| 🧪 **Protótipo antigo** | [`index.html`](index.html) | Página estática da primeira fase, sem chamadas à API |
+| 🧪 **Legado** | [`legado/`](legado) | Protótipo HTML estático e o primeiro app React das aulas iniciais |
 
 ---
 
@@ -288,7 +288,7 @@ Dois cuidados da tela de tarefas:
 - **Respostas fora de ordem são descartadas**: uma busca antiga não sobrescreve a mais recente.
 
 > [!NOTE]
-> O [`index.html`](index.html) da raiz é o protótipo estático da primeira fase (Tailwind via CDN, dados fixos no HTML). Ele não faz parte do app e não chama a API.
+> A pasta [`legado/`](legado) guarda os exercícios das primeiras fases (o protótipo estático em HTML e o primeiro app React). Eles não fazem parte do app e não chamam a API.
 
 ---
 
@@ -299,8 +299,7 @@ DSW-repo/
 ├── server.ts        # API: rotas, middleware, validações e banco
 ├── web/             # Interface React (Vite + TypeScript + Tailwind)
 │   └── src/         # api.ts, App.tsx, Login.tsx e Tarefas.tsx
-├── meu-primeiro-app/ # Exercício de React das aulas iniciais (lista em memória)
-├── index.html       # Protótipo estático da primeira fase
+├── legado/          # Protótipo HTML e primeiro app React das aulas iniciais
 ├── request.http     # Cenários de teste das rotas
 ├── diario/          # Notas semanais de aprendizado
 ├── package.json
