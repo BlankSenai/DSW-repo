@@ -14,7 +14,7 @@ interface LoginProps {
   aoLogar: () => void;
 }
 
-/** Os dois modos da tela. O TypeScript impede trocaremos por engano. */
+/** Os dois modos da tela. O TypeScript impede trocarmos por engano. */
 type Modo = "login" | "registro";
 
 export default function Login({ aoLogar }: LoginProps) {
@@ -36,7 +36,7 @@ export default function Login({ aoLogar }: LoginProps) {
    */
   const validar = (): string => {
     if (!email.trim()) return "Informe o e-mail.";
-    // A barra do @ é o mínimo esperado para um e-mail.
+    // A presença do @ é o mínimo esperado para um e-mail.
     if (!email.includes("@")) return "Informe um e-mail válido.";
 
     if (!senha) return "Informe a senha.";
@@ -49,7 +49,7 @@ export default function Login({ aoLogar }: LoginProps) {
 
   /**
    * O que acontece ao apertar o botão principal.
-   * `async` porque involves fetch (uma Promise). Por isso o `try/catch`.
+   * `async` porque envolve fetch (uma Promise). Por isso o `try/catch`.
    */
   const enviar = async (e: React.FormEvent) => {
     // Sem isso, o browser recarregaria a página e perderíamos todo o estado.

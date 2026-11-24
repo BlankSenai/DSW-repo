@@ -11,7 +11,7 @@
  *   4. modal  — confirmação antes de excluir
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   atualizarTarefa,
   criarTarefa,
@@ -25,6 +25,9 @@ import {
 // o TypeScript avisa aqui sem precisar mexer em nada.
 type Prioridade = Tarefa["prioridade"]; // "low" | "medium" | "high"
 type Status = Tarefa["status"]; // "pending" | "completed"
+
+/** O filtro da lista: uma prioridade específica ou todas. */
+type FiltroPrioridade = "todas" | Prioridade;
 
 /**
  * A API fala inglês (low/medium/high) porque é o contrato com o banco,
@@ -79,6 +82,12 @@ export default function Tarefas({ usuario, aoSair }: TarefasProps) {
   // separação, cada tecla dispararia uma requisição.
   const [busca, setBusca] = useState(""); // muda a cada tecla
   const [buscaAplicada, setBuscaAplicada] = useState(""); // vai para a API
+
+  // --- filtro por prioridade ------------------------------------------------
+  // Diferente da busca, o filtro é LOCAL: filtra a lista que já está na tela,
+  // sem nova chamada à API.
+  const [filtroPrioridade, setFiltroPrioridade] =
+    useState<FiltroPrioridade>("todas");
 
   // --- formulário de criação ----------------------------------------------
   const [titulo, setTitulo] = useState("");
@@ -279,6 +288,21 @@ export default function Tarefas({ usuario, aoSair }: TarefasProps) {
   const concluidas = tarefas.filter((t) => t.status === "completed").length;
   const pendentes = total - concluidas;
 
+  /**
+   * A lista que aparece na tela. É uma DERIVAÇÃO de `tarefas` + filtro, e não
+   * um novo estado: por isso useMemo, e não useEffect + setState. Com um
+   * estado a mais, teríamos duas cópias da lista para manter sincronizadas
+   * (e um render extra a cada mudança). O useMemo só recalcula quando a
+   * lista ou o filtro mudam.
+   */
+  const tarefasFiltradas = useMemo(
+    () =>
+      filtroPrioridade === "todas"
+        ? tarefas
+        : tarefas.filter((t) => t.prioridade === filtroPrioridade),
+    [tarefas, filtroPrioridade],
+  );
+
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 px-4 py-10">
       {/* ---------------------------------------------------------- 1. cabeçalho */}
@@ -363,6 +387,33 @@ export default function Tarefas({ usuario, aoSair }: TarefasProps) {
         />
       </div>
 
+      {/* ------------------------------------------- 3b. filtro por prioridade */}
+      <div
+        className="flex flex-wrap gap-2"
+        role="group"
+        aria-label="Filtrar por prioridade"
+      >
+        {(["todas", ...PRIORIDADES] as FiltroPrioridade[]).map((p) => {
+          const ativo = filtroPrioridade === p;
+
+          return (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setFiltroPrioridade(p)}
+              aria-pressed={ativo}
+              className={`rounded-full px-3 py-1 text-xs font-medium ring-1 transition ${
+                ativo
+                  ? "bg-slate-100 text-slate-900 ring-slate-100"
+                  : "bg-slate-800 text-slate-300 ring-slate-700 hover:bg-slate-700"
+              }`}
+            >
+              {p === "todas" ? "Todas" : PRIORIDADES_PT[p]}
+            </button>
+          );
+        })}
+      </div>
+
       {/* -------------------------------------------------------------- 4. erro */}
       {erro && (
         <div
@@ -407,9 +458,22 @@ export default function Tarefas({ usuario, aoSair }: TarefasProps) {
                 : "Use o formulário acima para criar a primeira."}
             </p>
           </div>
+        ) : tarefasFiltradas.length === 0 ? (
+          <div className="py-10 text-center">
+            <p className="text-slate-300">
+              Nenhuma tarefa com prioridade{" "}
+              {filtroPrioridade === "todas"
+                ? ""
+                : PRIORIDADES_PT[filtroPrioridade].toLowerCase()}
+              .
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Escolha outro filtro ou clique em "Todas".
+            </p>
+          </div>
         ) : (
           <ul className="flex max-h-[60vh] list-none flex-col gap-2 overflow-y-auto p-0 pr-1">
-            {tarefas.map((t) => {
+            {tarefasFiltradas.map((t) => {
               const feita = t.status === "completed";
 
               return (

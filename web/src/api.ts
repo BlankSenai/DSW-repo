@@ -17,8 +17,14 @@
 // 1. Endereço da API e tipos de dados
 // ---------------------------------------------------------------------------
 
-// Endereço do back-end. Em produção isso vira uma variável de ambiente.
-// const API_BASE = "http://localhost:3000";
+// Endereço da API. Vazio de propósito: o fetch pede "/api/tasks" e o
+// navegador completa com a origem que está na barra de endereço.
+//
+// Funciona nos dois modos de rodar:
+//  - Desenvolvimento (Vite em :5173): o proxy do vite.config.ts encaminha
+//    tudo que começa com /api para a API em :3000.
+//  - Servido pelo back (Aula 08, tudo em :3000): tela e API vêm da MESMA
+//    origem, então o caminho relativo basta, sem CORS e sem recompilar nada.
 const API_BASE = "";
 
 
@@ -95,7 +101,7 @@ export const authHeaders = (): Record<string, string> => {
 
 /**
  * Lê a resposta e devolve os dados quando deu certo; quando deu errado,
- * lança um Error com a mensagem que o servidor prepared.
+ * lança um Error com a mensagem que o servidor preparou.
  *
  * Por que lançar em vez de "devolver null"?
  * Assim o `catch` do componente já funciona, sem precisar checar dois casos.
@@ -103,8 +109,10 @@ export const authHeaders = (): Record<string, string> => {
 const tratarResposta = async <T,>(res: Response): Promise<T> => {
   const texto = await res.text();
 
-  // Nem toda resposta devolve JSON (ex.: o DELETE responde só com mensagem).
-  // Se o corpo não for JSON válido, deixamos `dados` como null e seguimos.
+  // Nem toda resposta devolve JSON (ex.: 204 No Content, corpo vazio).
+  // Se o corpo estiver vazio ou não for JSON válido, `dados` fica null.
+  // Repare que lemos com res.text() e não res.json(): o res.json() lançaria
+  // SyntaxError num corpo vazio, porque JSON.parse("") é inválido.
   let dados: unknown;
   try {
     dados = texto ? JSON.parse(texto) : null;
@@ -118,6 +126,12 @@ const tratarResposta = async <T,>(res: Response): Promise<T> => {
       (dados as { error?: string } | null)?.error ??
       `Falha na requisição (HTTP ${res.status}).`;
     throw new Error(mensagem);
+  }
+
+  // Sucesso sem corpo (204 No Content ou resposta vazia): não há o que
+  // devolver, então não fingimos que null é um T.
+  if (res.status === 204 || texto === "") {
+    return undefined as T;
   }
 
   return dados as T;
