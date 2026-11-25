@@ -1,0 +1,26 @@
+# Infraestrutura como código: o Render lê este arquivo para criar o serviço.
+# Um único Web Service entrega a API e a tela (o server.ts serve o web/dist).
+services:
+  - type: web
+    name: gerenciador-de-tarefas
+    runtime: node
+    plan: free
+    # Build: instala a raiz, depois o "npm run build" instala o web/, gera o
+    # web/dist (Vite) e checa os tipos do back (tsc).
+    buildCommand: npm install && npm run build
+    # Runtime: o processo que fica no ar recebendo as requisições.
+    startCommand: npm start
+    envVars:
+      # O Render gera um segredo forte no primeiro deploy.
+      - key: JWT_SECRET
+        generateValue: true
+      # Credenciais do Turso: o Render não tem como adivinhar, então são
+      # preenchidas à mão no painel (sync: false = não ficam neste arquivo).
+      - key: TURSO_URL
+        sync: false
+      - key: TURSO_TOKEN
+        sync: false
+    # O Render só considera o deploy "Live" quando esta rota responde 200
+    # (e ela só responde 200 se o banco responder ao SELECT 1).
+    healthCheckPath: /api/health
+    autoDeploy: true

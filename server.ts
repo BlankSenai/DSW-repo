@@ -370,6 +370,39 @@ app.get("/api/version", (_req: Request, res: Response) => {
     res.json({ appName: "Gerenciador de Tarefas Multi-Usuário", version: "1.0.0" });
 });
 
+/**
+ * Diagnóstico do banco (Aula 10). Em produção confirma, numa chamada só, que:
+ *   1. o servidor alcança o banco (SELECT 1);
+ *   2. as tabelas existem (lidas do catálogo sqlite_master);
+ *   3. quantos registros há em cada uma.
+ * Só devolve nomes de tabelas e contagens, nunca o conteúdo.
+ */
+app.get("/api/db-check", async (_req: Request, res: Response) => {
+    try {
+        await db.execute("SELECT 1");
+
+        const { rows } = await db.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+        );
+        const tabelas = rows.map((r) => String(r.name));
+
+        const contagem: Record<string, number> = {};
+        for (const nome of tabelas) {
+            // Nome de tabela não pode ir como parâmetro (?), só valores podem.
+            // Ele vem do próprio catálogo do banco, e ainda assim vai entre
+            // aspas (com aspas internas duplicadas) para nunca virar SQL.
+            const { rows: total } = await db.execute(
+                `SELECT COUNT(*) AS total FROM "${nome.replace(/"/g, '""')}"`,
+            );
+            contagem[nome] = Number(total[0].total);
+        }
+
+        return res.json({ ok: true, banco: MODO_BANCO, tabelas, contagem });
+    } catch {
+        return res.status(503).json({ ok: false, banco: MODO_BANCO, error: "Falha ao consultar o banco." });
+    }
+});
+
 app.post("/api/auth/register", async (req: Request, res: Response) => {
     const { email, senha } = req.body ?? {};
 

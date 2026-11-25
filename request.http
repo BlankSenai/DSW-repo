@@ -387,3 +387,13 @@ GET http://localhost:3000/apixyz
 
 ### 50. GET /api/health — a API continua respondendo junto com a tela -> 200
 GET http://localhost:3000/api/health
+
+
+# ============================================================================
+#  AULA 10 — DIAGNÓSTICO PARA O DEPLOY
+#  Em produção, troque http://localhost:3000 pela URL pública do Render.
+# ============================================================================
+
+### 51. GET /api/db-check — banco alcançável, tabelas e contagens -> 200
+# Esperado: ok: true, tabelas: ["tarefas", "usuarios"], contagem por tabela.
+GET http://localhost:3000/api/db-check
